@@ -1,11 +1,11 @@
 """Player model and related enums."""
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
 
 
-class PlayerPosition(str, Enum):
+class PlayerPosition(StrEnum):
     """FPL player positions."""
 
     GOALKEEPER = "GKP"
@@ -34,11 +34,12 @@ class PlayerPosition(str, Enum):
             4: cls.FORWARD,
         }
         if position_id not in mapping:
-            raise ValueError(f"Invalid position ID: {position_id}")
+            exc = ValueError(f"Invalid position ID: {position_id}")
+            raise exc
         return mapping[position_id]
 
 
-class PlayerStatus(str, Enum):
+class PlayerStatus(StrEnum):
     """Player availability status."""
 
     AVAILABLE = "a"
@@ -152,7 +153,8 @@ class Player(BaseModel):
                 return PlayerPosition(v.upper())
             except ValueError:
                 return PlayerPosition.from_id(int(v))
-        raise TypeError(f"Invalid position type: {type(v)}")
+        exc = TypeError(f"Invalid position type: {type(v)}")
+        raise exc
 
     @property
     def full_name(self) -> str:

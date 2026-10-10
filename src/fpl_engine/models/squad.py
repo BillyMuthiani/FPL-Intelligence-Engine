@@ -19,14 +19,16 @@ class SquadPlayer(BaseModel):
     @classmethod
     def _validate_position(cls, v: int) -> int:
         if not 1 <= v <= 15:
-            raise ValueError("Squad position must be between 1 and 15")
+            exc = ValueError("Squad position must be between 1 and 15")
+            raise exc
         return v
 
     @field_validator("multiplier")
     @classmethod
     def _validate_multiplier(cls, v: int) -> int:
         if v not in (1, 2, 3):
-            raise ValueError("Multiplier must be 1, 2, or 3")
+            exc = ValueError("Multiplier must be 1, 2, or 3")
+            raise exc
         return v
 
 
@@ -55,7 +57,8 @@ class Squad(BaseModel):
     @classmethod
     def _validate_squad_size(cls, v: list[SquadPlayer]) -> list[SquadPlayer]:
         if len(v) > 15:
-            raise ValueError("Squad cannot have more than 15 players")
+            exc = ValueError("Squad cannot have more than 15 players")
+            raise exc
         return v
 
     def get_starting_xi(self) -> list[SquadPlayer]:

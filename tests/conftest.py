@@ -30,7 +30,7 @@ def mock_bootstrap_data() -> dict[str, Any]:
     """Load mock bootstrap data from fixture file."""
     fixture_path = Path(__file__).parent / "fixtures" / "bootstrap_static.json"
     if fixture_path.exists():
-        with open(fixture_path) as f:
+        with fixture_path.open() as f:
             return json.load(f)
     return _create_minimal_bootstrap()
 
@@ -40,7 +40,7 @@ def mock_fixtures_data() -> list[dict[str, Any]]:
     """Load mock fixtures data from fixture file."""
     fixture_path = Path(__file__).parent / "fixtures" / "fixtures.json"
     if fixture_path.exists():
-        with open(fixture_path) as f:
+        with fixture_path.open() as f:
             return json.load(f)
     return []
 
@@ -111,7 +111,7 @@ def sample_gameweek() -> Gameweek:
 
 
 @pytest.fixture
-def mock_fpl_client(mock_bootstrap_data: dict[str, Any], mock_fixtures_data: list[dict[str, Any]]) -> Mock:
+def mock_fpl_client(mock_bootstrap_data: dict[str, Any]) -> Mock:
     """Create a mocked FPL client."""
     client = Mock(spec=FPLClient)
     client.get_bootstrap_data.return_value = mock_bootstrap_data

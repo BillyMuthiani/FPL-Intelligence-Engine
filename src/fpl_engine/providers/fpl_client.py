@@ -81,7 +81,7 @@ class FPLClient(
                 if e.response.status_code >= 500 and attempt < max_retries:
                     time.sleep(backoff * (2**attempt))
                     continue
-                log.error(
+                log.exception(
                     "FPL API request failed",
                     endpoint=endpoint,
                     status_code=e.response.status_code,
@@ -93,12 +93,13 @@ class FPLClient(
                 if attempt < max_retries:
                     time.sleep(backoff * (2**attempt))
                     continue
-                log.error("FPL API request error", endpoint=endpoint, error=str(e), attempt=attempt + 1)
+                log.exception("FPL API request error", endpoint=endpoint, error=str(e), attempt=attempt + 1)
                 raise
 
         if last_exception:
             raise last_exception
-        raise RuntimeError("Request failed without exception")
+        exc = RuntimeError("Request failed without exception")
+        raise exc
 
     def get_bootstrap_data(self) -> dict[str, Any]:
         """Get full bootstrap-static data."""
@@ -116,12 +117,10 @@ class FPLClient(
         data = self.get_bootstrap_data()
         elements = data.get("elements", [])
         teams = {t["id"]: t for t in data.get("teams", [])}
-        element_types = {et["id"]: et for et in data.get("element_types", [])}
 
         players = []
         for elem in elements:
             team_data = teams.get(elem["team"], {})
-            position_data = element_types.get(elem["element_type"], {})
 
             player = Player(
                 id=elem["id"],

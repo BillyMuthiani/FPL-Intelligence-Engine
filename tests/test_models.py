@@ -213,8 +213,8 @@ class TestFixture:
             team_h_difficulty=2,
             team_a_difficulty=4,
         )
-        assert fixture.get_difficulty(1, True) == FixtureDifficulty.EASY
-        assert fixture.get_difficulty(2, False) == FixtureDifficulty.HARD
+        assert fixture.get_difficulty(True) == FixtureDifficulty.EASY
+        assert fixture.get_difficulty(False) == FixtureDifficulty.HARD
 
     def test_get_opponent(self) -> None:
         """Test getting opponent team ID."""
@@ -323,7 +323,7 @@ class TestSquad:
     def test_squad_size_validation(self, sample_player: Player) -> None:
         """Test squad size validation."""
         # Creating 16 SquadPlayers will fail at SquadPlayer level (position 16 invalid)
-        with pytest.raises(Exception):  # Pydantic raises ValidationError
+        with pytest.raises(ValueError):  # Pydantic raises ValidationError
             [SquadPlayer(player=sample_player, position=i) for i in range(1, 17)]
 
     def test_get_starting_xi(self, sample_player: Player) -> None:
@@ -362,8 +362,6 @@ class TestSquad:
         defs = [Player(id=i, web_name=f"DF{i}", first_name="DF", second_name=str(i), team_id=i, position=PlayerPosition.DEFENDER, status=PlayerStatus.AVAILABLE, now_cost=50, code=i+10, element_type=2, team_code=i) for i in range(3, 8)]
         mids = [Player(id=i, web_name=f"MD{i}", first_name="MD", second_name=str(i), team_id=i, position=PlayerPosition.MIDFIELDER, status=PlayerStatus.AVAILABLE, now_cost=60, code=i+20, element_type=3, team_code=i) for i in range(8, 13)]
         fwds = [Player(id=i, web_name=f"FW{i}", first_name="FW", second_name=str(i), team_id=i, position=PlayerPosition.FORWARD, status=PlayerStatus.AVAILABLE, now_cost=70, code=i+30, element_type=4, team_code=i) for i in range(13, 16)]
-
-        all_players = [gk1, gk2] + defs + mids + fwds
 
         # Assign positions carefully: 1 GK, 3 DEF, 4 MID, 3 FWD in starting XI
         # Position 1: GK1
@@ -462,7 +460,7 @@ class TestSquad:
             Player(id=15, web_name="FW3", first_name="FW", second_name="3", team_id=7, position=PlayerPosition.FORWARD, status=PlayerStatus.AVAILABLE, now_cost=70, code=15, element_type=4, team_code=7),
         ]
 
-        all_players = [gk] + defs + mids + fwds + bench
+        all_players = [gk, *defs, *mids, *fwds, *bench]
         squad_players = [SquadPlayer(player=p, position=i+1) for i, p in enumerate(all_players)]
         squad = Squad(players=squad_players, gameweek=1)
         assert squad.get_formation_string() == "3-4-3"

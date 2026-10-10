@@ -362,7 +362,7 @@ class TestFPLClient:
         assert next_gw is not None
         assert next_gw.id == 2
 
-    def test_request_retry_on_5xx(self, client: FPLClient, settings: Settings) -> None:
+    def test_request_retry_on_5xx(self, settings: Settings) -> None:
         """Test retry logic on 5xx errors - should succeed after retries."""
         # Create client with retries
         settings.fpl_max_retries = 2
@@ -371,11 +371,12 @@ class TestFPLClient:
 
         call_count = 0
 
-        def mock_get(*args, **kwargs):
+        def mock_get(*_args, **_kwargs):
             nonlocal call_count
             call_count += 1
             if call_count < 3:
-                raise httpx.HTTPStatusError("Server Error", request=Mock(), response=Mock(status_code=500))
+                exc = httpx.HTTPStatusError("Server Error", request=Mock(), response=Mock(status_code=500))
+                raise exc
             return Mock(json=lambda: {"elements": [], "teams": [], "element_types": [], "events": []}, status_code=200)
 
         with patch.object(retry_client._get_client(), "get", side_effect=mock_get):
@@ -387,12 +388,12 @@ class TestFPLClient:
 
     def test_request_raises_on_4xx(self, client: FPLClient) -> None:
         """Test that 4xx errors are raised immediately without retry."""
-        def mock_request(*args, **kwargs):
-            raise httpx.HTTPStatusError("Not Found", request=Mock(), response=Mock(status_code=404))
+        def mock_request(*_args, **_kwargs):
+            exc = httpx.HTTPStatusError("Not Found", request=Mock(), response=Mock(status_code=404))
+            raise exc
 
-        with patch.object(client, "_request", side_effect=mock_request):
-            with pytest.raises(httpx.HTTPStatusError):
-                client.get_bootstrap_data()
+        with patch.object(client, "_request", side_effect=mock_request), pytest.raises(httpx.HTTPStatusError):
+            client.get_bootstrap_data()
 
     def test_safe_float(self) -> None:
         """Test _safe_float helper."""
@@ -424,18 +425,18 @@ class TestFPLClientErrorHandling:
 
     def test_network_error_raises(self, client: FPLClient) -> None:
         """Test that network errors are raised."""
-        def mock_get(*args, **kwargs):
-            raise httpx.ConnectError("Connection failed")
+        def mock_get(*_args, **_kwargs):
+            exc = httpx.ConnectError("Connection failed")
+            raise exc
 
-        with patch.object(client._get_client(), "get", side_effect=mock_get):
-            with pytest.raises(httpx.ConnectError):
-                client.get_bootstrap_data()
+        with patch.object(client._get_client(), "get", side_effect=mock_get), pytest.raises(httpx.ConnectError):
+            client.get_bootstrap_data()
 
     def test_timeout_error_raises(self, client: FPLClient) -> None:
         """Test that timeout errors are raised."""
-        def mock_get(*args, **kwargs):
-            raise httpx.TimeoutException("Request timeout")
+        def mock_get(*_args, **_kwargs):
+            exc = httpx.TimeoutException("Request timeout")
+            raise exc
 
-        with patch.object(client._get_client(), "get", side_effect=mock_get):
-            with pytest.raises(httpx.TimeoutException):
-                client.get_bootstrap_data()
+        with patch.object(client._get_client(), "get", side_effect=mock_get), pytest.raises(httpx.TimeoutException):
+            client.get_bootstrap_data()

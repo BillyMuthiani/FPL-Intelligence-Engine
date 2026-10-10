@@ -1,12 +1,12 @@
 """Fixture model and related enums."""
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class FixtureDifficulty(str, Enum):
+class FixtureDifficulty(StrEnum):
     """Fixture difficulty rating."""
 
     VERY_EASY = "very_easy"
@@ -68,7 +68,7 @@ class Fixture(BaseModel):
     team_h_name: str | None = Field(default=None, description="Home team short name")
     team_a_name: str | None = Field(default=None, description="Away team short name")
 
-    def get_difficulty(self, team_id: int, is_home: bool) -> FixtureDifficulty:
+    def get_difficulty(self, is_home: bool) -> FixtureDifficulty:
         """Get difficulty for a specific team."""
         if is_home:
             return FixtureDifficulty.from_fdr(self.team_h_difficulty)
