@@ -67,6 +67,11 @@ class Settings(BaseSettings):
         default=Path(__file__).parents[3] / "data/processed",
         description="Directory for processed data files",
     )
+    bootstrap_cache_ttl_seconds: float = Field(
+        default=3600.0,
+        description="TTL in seconds for cached bootstrap snapshots (freshness threshold)",
+        gt=0,
+    )
 
     # Logging
     log_level: str = Field(

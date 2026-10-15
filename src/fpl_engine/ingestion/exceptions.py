@@ -10,3 +10,23 @@ class IngestionError(Exception):
       * sections whose content is not iterable as expected
       * results where every record was rejected (the dataset is unusable)
     """
+
+
+class IngestionCoordinatorError(Exception):
+    """Raised when the end-to-end ingestion pipeline cannot complete.
+
+    This is distinct from :class:`IngestionError` (originating in the
+    normalization layer) and from
+    :class:`~fpl_engine.storage.exceptions.CacheError` (originating in the
+    raw-snapshot persistence layer).
+
+    The coordinator raises this when:
+
+    * The bootstrap API request failed and no usable stale snapshot is
+      available for fallback.
+    * The bootstrap payload has all three required sections empty
+      (``elements``, ``teams``, ``events`` are all present but empty).
+    * Normalization raised :class:`IngestionError` (the payload is
+      structurally unusable).
+    * Raw-snapshot persistence or processed-data persistence failed.
+    """

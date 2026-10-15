@@ -67,6 +67,26 @@ class TestSettings:
         settings = Settings(fpl_timeout_seconds=10.0)
         assert settings.fpl_timeout_seconds == 10.0
 
+    def test_bootstrap_cache_ttl_seconds_default(self) -> None:
+        """Test default value for bootstrap cache TTL."""
+        settings = Settings()
+        assert settings.bootstrap_cache_ttl_seconds == 3600.0
+
+    def test_bootstrap_cache_ttl_seconds_valid(self) -> None:
+        """Test valid custom TTL value."""
+        settings = Settings(bootstrap_cache_ttl_seconds=7200.0)
+        assert settings.bootstrap_cache_ttl_seconds == 7200.0
+
+    def test_bootstrap_cache_ttl_seconds_invalid_zero(self) -> None:
+        """Test that zero TTL is rejected (gt=0)."""
+        with pytest.raises(ValueError):
+            Settings(bootstrap_cache_ttl_seconds=0)
+
+    def test_bootstrap_cache_ttl_seconds_invalid_negative(self) -> None:
+        """Test that negative TTL is rejected (gt=0)."""
+        with pytest.raises(ValueError):
+            Settings(bootstrap_cache_ttl_seconds=-1)
+
     def test_max_retries_validation(self) -> None:
         """Test max retries validation."""
         with pytest.raises(ValueError):
