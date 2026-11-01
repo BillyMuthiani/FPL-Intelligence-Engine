@@ -1,5 +1,7 @@
 """Tests for data models."""
 
+from datetime import UTC, datetime, timedelta, timezone
+
 import pytest
 
 from fpl_engine.models import (
@@ -7,11 +9,15 @@ from fpl_engine.models import (
     FixtureDifficulty,
     Gameweek,
     Player,
+    PlayerMatchHistory,
     PlayerPosition,
     PlayerStatus,
     Squad,
     SquadPlayer,
     Team,
+    defensive_contribution_from_history,
+    normalize_match_history,
+    normalize_match_history_with_fixtures,
 )
 
 
@@ -464,3 +470,366 @@ class TestSquad:
         squad_players = [SquadPlayer(player=p, position=i+1) for i, p in enumerate(all_players)]
         squad = Squad(players=squad_players, gameweek=1)
         assert squad.get_formation_string() == "3-4-3"
+
+
+class TestPlayerMatchHistory:
+    """Tests for PlayerMatchHistory model."""
+
+    def test_create_match_history(self) -> None:
+        """Test creating a PlayerMatchHistory with required fields."""
+        history = PlayerMatchHistory(
+            player_id=1,
+            fixture_id=2,
+            gameweek=1,
+            minutes=90,
+            tackles=5,
+            clearances_blocks_interceptions=4,
+            recoveries=8,
+            total_points=5,
+        )
+        assert history.player_id == 1
+        assert history.fixture_id == 2
+        assert history.gameweek == 1
+        assert history.minutes == 90
+        assert history.tackles == 5
+        assert history.clearances_blocks_interceptions == 4
+        assert history.recoveries == 8
+        assert history.total_points == 5
+
+    def test_default_values(self) -> None:
+        """Test that default values are set correctly."""
+        history = PlayerMatchHistory(player_id=1, fixture_id=2, gameweek=1)
+        assert history.minutes == 0
+        assert history.tackles == 0
+        assert history.clearances_blocks_interceptions == 0
+        assert history.recoveries == 0
+        assert history.clean_sheet is False
+        assert history.bonus == 0
+        assert history.bps == 0
+        assert history.total_points == 0
+
+    def test_outcome_time_default_is_none(self) -> None:
+        """outcome_time defaults to None when not supplied."""
+        history = PlayerMatchHistory(player_id=1, fixture_id=2, gameweek=1)
+        assert history.outcome_time is None
+
+    def test_outcome_time_accepts_utc(self) -> None:
+        """A UTC-aware datetime is accepted."""
+        ts = datetime(2024, 9, 28, 14, 0, tzinfo=UTC)
+        history = PlayerMatchHistory(
+            player_id=1, fixture_id=2, gameweek=1, outcome_time=ts,
+        )
+        assert history.outcome_time == ts
+        assert history.outcome_time is not None
+        assert history.outcome_time.utcoffset() == UTC.utcoffset(None)
+
+    def test_outcome_time_rejects_naive(self) -> None:
+        """A tz-naive datetime raises a validation error."""
+        naive = datetime(2024, 9, 28, 14, 0)  # noqa: DTZ001
+        with pytest.raises(ValueError):
+            PlayerMatchHistory(
+                player_id=1, fixture_id=2, gameweek=1, outcome_time=naive,
+            )
+
+    def test_outcome_time_rejects_non_utc(self) -> None:
+        """A non-UTC timezone is rejected."""
+        from datetime import timedelta
+
+        ts_plus5 = datetime(2024, 9, 28, 14, 0, tzinfo=timezone(timedelta(hours=5)))
+        with pytest.raises(ValueError):
+            PlayerMatchHistory(
+                player_id=1, fixture_id=2, gameweek=1, outcome_time=ts_plus5,
+            )
+
+    def test_invalid_player_id_type(self) -> None:
+        """Test that non-int player_id raises TypeError."""
+        with pytest.raises(TypeError):
+            PlayerMatchHistory(player_id="not_int", fixture_id=2, gameweek=1)
+
+    def test_invalid_player_id_negative(self) -> None:
+        """Test that negative player_id raises ValueError."""
+        with pytest.raises(ValueError):
+            PlayerMatchHistory(player_id=-1, fixture_id=2, gameweek=1)
+
+    def test_invalid_gameweek_range(self) -> None:
+        """Test that gameweek outside [1, 38] raises validation error."""
+        with pytest.raises(ValueError):  # Pydantic ValidationError
+            PlayerMatchHistory(player_id=1, fixture_id=2, gameweek=0)
+        with pytest.raises(ValueError):
+            PlayerMatchHistory(player_id=1, fixture_id=2, gameweek=39)
+
+    def test_minutes_out_of_range(self) -> None:
+        """Test that minutes > 120 raises validation error."""
+        with pytest.raises(ValueError):
+            PlayerMatchHistory(player_id=1, fixture_id=2, gameweek=1, minutes=121)
+
+    def test_bonus_out_of_range(self) -> None:
+        """Test that bonus > 3 raises validation error."""
+        with pytest.raises(ValueError):
+            PlayerMatchHistory(
+                player_id=1, fixture_id=2, gameweek=1, bonus=4
+            )
+
+    def test_kickoff_time_defaults_to_none(self) -> None:
+        """kickoff_time defaults to None when not supplied."""
+        history = PlayerMatchHistory(player_id=1, fixture_id=2, gameweek=1)
+        assert history.kickoff_time is None
+
+    def test_kickoff_time_accepts_utc(self) -> None:
+        """A UTC-aware datetime is accepted for kickoff_time."""
+        ts = datetime(2024, 8, 12, 14, 0, tzinfo=UTC)
+        history = PlayerMatchHistory(
+            player_id=1, fixture_id=2, gameweek=1, kickoff_time=ts,
+        )
+        assert history.kickoff_time == ts
+        assert history.kickoff_time is not None
+        assert history.kickoff_time.utcoffset() == UTC.utcoffset(None)
+
+    def test_kickoff_time_rejects_naive(self) -> None:
+        """A tz-naive datetime raises a validation error for kickoff_time."""
+        naive = datetime(2024, 8, 12, 14, 0)  # noqa: DTZ001
+        with pytest.raises(ValueError):
+            PlayerMatchHistory(
+                player_id=1, fixture_id=2, gameweek=1, kickoff_time=naive,
+            )
+
+    def test_kickoff_time_rejects_non_utc(self) -> None:
+        """A non-UTC timezone is rejected for kickoff_time."""
+        ts_plus5 = datetime(2024, 8, 12, 14, 0, tzinfo=timezone(timedelta(hours=5)))
+        with pytest.raises(ValueError):
+            PlayerMatchHistory(
+                player_id=1, fixture_id=2, gameweek=1, kickoff_time=ts_plus5,
+            )
+
+    def test_kickoff_time_distinct_from_outcome_time(self) -> None:
+        """kickoff_time and outcome_time are independent fields."""
+        kickoff = datetime(2024, 8, 12, 14, 0, tzinfo=UTC)
+        outcome = datetime(2024, 8, 12, 16, 0, tzinfo=UTC)
+        history = PlayerMatchHistory(
+            player_id=1, fixture_id=2, gameweek=1,
+            kickoff_time=kickoff,
+            outcome_time=outcome,
+        )
+        assert history.kickoff_time == kickoff
+        assert history.outcome_time == outcome
+        assert history.kickoff_time != history.outcome_time
+
+
+class TestDefensiveContributionFromHistory:
+    """Tests for defensive_contribution_from_history helper."""
+
+    def test_defender_meets_threshold(self) -> None:
+        """Test defender meeting DC threshold (10+ CBIT)."""
+        history = PlayerMatchHistory(
+            player_id=1,
+            fixture_id=2,
+            gameweek=1,
+            tackles=5,
+            clearances_blocks_interceptions=6,
+            recoveries=0,
+        )
+        # CBIT = 5+6 = 11 >= 10 -> True
+        assert defensive_contribution_from_history(history, threshold=10) is True
+
+    def test_defender_threshold_breach(self) -> None:
+        """Test defender exactly at threshold boundary."""
+        history = PlayerMatchHistory(
+            player_id=1,
+            fixture_id=2,
+            gameweek=1,
+            tackles=0,
+            clearances_blocks_interceptions=9,
+            recoveries=0,
+        )
+        # CBIT = 9 < 10 -> False
+        assert defensive_contribution_from_history(history, threshold=10) is False
+
+    def test_midfielder_meets_threshold(self) -> None:
+        """Test midfielder meeting DC threshold (12+ CBIRT)."""
+        history = PlayerMatchHistory(
+            player_id=1,
+            fixture_id=2,
+            gameweek=1,
+            tackles=5,
+            clearances_blocks_interceptions=4,
+            recoveries=5,
+        )
+        # CBIRT = 5+4+5 = 14 >= 12 -> True
+        assert defensive_contribution_from_history(history, threshold=12) is True
+
+    def test_midfielder_below_threshold(self) -> None:
+        """Test midfielder below DC threshold."""
+        history = PlayerMatchHistory(
+            player_id=1,
+            fixture_id=2,
+            gameweek=1,
+            tackles=3,
+            clearances_blocks_interceptions=2,
+            recoveries=1,
+        )
+        # CBIRT = 3+2+1 = 6 < 12 -> False
+        assert defensive_contribution_from_history(history, threshold=12) is False
+
+    def test_invalid_threshold(self) -> None:
+        """Test that invalid threshold raises ValueError."""
+        history = PlayerMatchHistory(
+            player_id=1, fixture_id=2, gameweek=1
+        )
+        with pytest.raises(ValueError, match="threshold must be 10"):
+            defensive_contribution_from_history(history, threshold=11)
+
+    def test_defender_recoveries_do_not_count(self) -> None:
+        """Test that recoveries do NOT count toward DEF DC threshold (CBIR only).
+
+        This is a regression test for a bug where recoveries were incorrectly
+        included in the DEF threshold calculation.
+        """
+        # CBIT = 9 (below threshold), but CBIRT = 17 (above threshold)
+        # For a DEF, recoveries should NOT be counted — DC = False
+        history = PlayerMatchHistory(
+            player_id=1,
+            fixture_id=2,
+            gameweek=1,
+            tackles=5,
+            clearances_blocks_interceptions=4,
+            recoveries=8,
+        )
+        # DEF: CBIT = 9 < 10 -> False (recoveries excluded)
+        assert defensive_contribution_from_history(history, threshold=10) is False
+        # MID/FWD: CBIRT = 17 >= 12 -> True (recoveries included)
+        assert defensive_contribution_from_history(history, threshold=12) is True
+
+
+# ---------------------------------------------------------------------------
+# normalize_match_history
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeMatchHistory:
+    """Tests for the normalize_match_history factory function."""
+
+    def test_maps_raw_fields(self) -> None:
+        """Raw API fields are mapped to canonical model fields."""
+        raw = {
+            "fixture": 42,
+            "round": 5,
+            "minutes": 90,
+            "tackles": 3,
+            "clearances_blocks_interceptions": 2,
+            "recoveries": 4,
+            "goals_conceded": 1,
+            "clean_sheet": False,
+            "saves": 0,
+            "goals_scored": 0,
+            "assists": 1,
+            "yellow_cards": 1,
+            "red_cards": 0,
+            "own_goals": 0,
+            "penalties_saved": 0,
+            "penalties_missed": 0,
+            "bonus": 1,
+            "bps": 15,
+            "total_points": 2,
+        }
+        history = normalize_match_history(player_id=10, raw=raw)
+        assert history.player_id == 10
+        assert history.fixture_id == 42
+        assert history.gameweek == 5
+        assert history.tackles == 3
+        assert history.clearances_blocks_interceptions == 2
+        assert history.recoveries == 4
+        assert history.goals_conceded == 1
+        assert history.clean_sheet is False
+        assert history.bonus == 1
+        assert history.bps == 15
+        assert history.total_points == 2
+
+    def test_default_zero_for_missing_fields(self) -> None:
+        """Missing numeric fields default to 0; booleans to False."""
+        raw = {"fixture": 1, "round": 1}
+        history = normalize_match_history(player_id=1, raw=raw)
+        assert history.minutes == 0
+        assert history.tackles == 0
+        assert history.recoveries == 0
+        assert history.clean_sheet is False
+        assert history.outcome_time is None
+
+    def test_outcome_time_passed_through(self) -> None:
+        """outcome_time is passed through to the model."""
+        ts = datetime(2024, 9, 28, 14, 0, tzinfo=UTC)
+        history = normalize_match_history(
+            player_id=1, raw={"fixture": 1, "round": 1}, outcome_time=ts
+        )
+        assert history.outcome_time == ts
+
+    def test_kickoff_time_passed_through(self) -> None:
+        """kickoff_time is passed through to the model."""
+        ts = datetime(2024, 8, 12, 14, 0, tzinfo=UTC)
+        history = normalize_match_history(
+            player_id=1,
+            raw={"fixture": 1, "round": 1},
+            kickoff_time=ts,
+        )
+        assert history.kickoff_time == ts
+
+    def test_naive_outcome_time_rejected(self) -> None:
+        """A naive outcome_time raises during normalization."""
+        raw = {"fixture": 1, "round": 1}
+        with pytest.raises(ValueError):
+            normalize_match_history(
+                player_id=1, raw=raw, outcome_time=datetime(2024, 1, 1)  # noqa: DTZ001
+            )
+
+    def test_naive_kickoff_time_rejected(self) -> None:
+        """A naive kickoff_time raises during normalization."""
+        raw = {"fixture": 1, "round": 1}
+        with pytest.raises(ValueError):
+            normalize_match_history(
+                player_id=1, raw=raw, kickoff_time=datetime(2024, 1, 1)  # noqa: DTZ001
+            )
+
+
+# ---------------------------------------------------------------------------
+# normalize_match_history_with_fixtures
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeMatchHistoryWithFixtures:
+    """Tests for fixture-metadata joining in normalize_match_history_with_fixtures."""
+
+    def test_join_populates_kickoff_time(self) -> None:
+        """kickoff_time is parsed from the Fixture's ISO string."""
+        raw = {"fixture": 42, "round": 1, "minutes": 90, "tackles": 5}
+        fixture = Fixture(
+            id=42, code=1, event=1, team_h=1, team_a=2,
+            kickoff_time="2024-08-12T14:00:00Z",
+        )
+        history = normalize_match_history_with_fixtures(
+            player_id=1, raw=raw, fixtures={42: fixture}
+        )
+        assert history.kickoff_time is not None
+        assert history.kickoff_time.utcoffset() == UTC.utcoffset(None)
+
+    def test_missing_fixture_leaves_kickoff_time_none(self) -> None:
+        """If the fixture is not in the mapping, kickoff_time stays None."""
+        raw = {"fixture": 99, "round": 1}
+        history = normalize_match_history_with_fixtures(
+            player_id=1, raw=raw, fixtures={}
+        )
+        assert history.kickoff_time is None
+        assert history.outcome_time is None
+
+    def test_outcome_time_not_derived_from_kickoff(self) -> None:
+        """outcome_time must NOT be set from kickoff_time (provenance fix)."""
+        raw = {"fixture": 42, "round": 1, "minutes": 90}
+        fixture = Fixture(
+            id=42, code=1, event=1, team_h=1, team_a=2,
+            kickoff_time="2024-08-12T14:00:00Z",
+        )
+        history = normalize_match_history_with_fixtures(
+            player_id=1, raw=raw, fixtures={42: fixture}
+        )
+        # kickoff_time is populated from the fixture
+        assert history.kickoff_time is not None
+        # outcome_time must remain None â€” it is NOT derived from kickoff_time
+        assert history.outcome_time is None

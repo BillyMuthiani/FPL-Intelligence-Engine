@@ -22,15 +22,25 @@ from .bootstrap import (
 )
 from .coordinator import IngestionCoordinator
 from .exceptions import IngestionCoordinatorError, IngestionError
+from .historical import (
+    HistoricalCollectionError,
+    HistoricalCollectionResult,
+    HistoricalDataCollector,
+    PlayerCollectionResult,
+)
 from .models import IngestionResult
 from .processed import ProcessedWriter
 
 __all__ = [
     "Conflict",
+    "HistoricalCollectionError",
+    "HistoricalCollectionResult",
+    "HistoricalDataCollector",
     "IngestionCoordinator",
     "IngestionCoordinatorError",
     "IngestionError",
     "IngestionResult",
+    "PlayerCollectionResult",
     "ProcessedWriter",
     "Rejection",
     "ValidationReport",

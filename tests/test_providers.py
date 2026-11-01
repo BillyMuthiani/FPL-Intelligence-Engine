@@ -6,7 +6,12 @@ import httpx
 import pytest
 
 from fpl_engine.config import Settings
-from fpl_engine.models import PlayerPosition, PlayerStatus
+from fpl_engine.models import (
+    PlayerMatchHistory,
+    PlayerPosition,
+    PlayerStatus,
+    normalize_match_history,
+)
 from fpl_engine.providers import FPLClient
 from fpl_engine.providers.protocols import (
     BootstrapDataProvider,
@@ -140,9 +145,10 @@ class TestFPLClient:
                     "bonus": 50,
                     "bps": 500,
                     "tackles": 20,
-                    "interceptions": 15,
-                    "clearances": 10,
-                    "blocks": 5,
+                    "clearances_blocks_interceptions": 15,
+                    "recoveries": 10,
+                    "defensive_contribution": 5,
+                    "defensive_contribution_per_90": 1.2,
                     "influence": "120.5",
                     "creativity": "95.2",
                     "threat": "145.8",
@@ -206,6 +212,11 @@ class TestFPLClient:
         assert player.now_cost == 130
         assert player.price == 13.0
         assert player.full_name == "Mohamed Salah"
+        assert player.tackles == 20
+        assert player.clearances_blocks_interceptions == 15
+        assert player.recoveries == 10
+        assert player.defensive_contribution == 5
+        assert player.defensive_contribution_per_90 == 1.2
 
     def test_get_teams_parses_correctly(self, client: FPLClient) -> None:
         """Test team parsing from bootstrap data."""
@@ -440,3 +451,207 @@ class TestFPLClientErrorHandling:
 
         with patch.object(client._get_client(), "get", side_effect=mock_get), pytest.raises(httpx.TimeoutException):
             client.get_bootstrap_data()
+
+
+class TestPlayerHistory:
+    """Tests for FPLClient player history methods."""
+
+    @pytest.fixture
+    def settings(self) -> Settings:
+        return Settings(
+            environment="test",
+            fpl_base_url="https://fantasy.premierleague.com/api",
+            fpl_timeout_seconds=5.0,
+            fpl_max_retries=0,
+        )
+
+    @pytest.fixture
+    def client(self, settings: Settings) -> FPLClient:
+        return FPLClient(settings)
+
+    def test_get_player_history_returns_typed_list(
+        self, client: FPLClient
+    ) -> None:
+        """Test that get_player_history returns list[PlayerMatchHistory]."""
+        mock_element_summary = {
+            "history": [
+                {
+                    "fixture": 1,
+                    "round": 1,
+                    "minutes": 90,
+                    "tackles": 3,
+                    "clearances_blocks_interceptions": 2,
+                    "recoveries": 5,
+                    "goals_scored": 1,
+                    "assists": 0,
+                    "clean_sheet": True,
+                    "bonus": 1,
+                    "bps": 25,
+                    "total_points": 9,
+                },
+                {
+                    "fixture": 2,
+                    "round": 2,
+                    "minutes": 60,
+                    "tackles": 2,
+                    "clearances_blocks_interceptions": 1,
+                    "recoveries": 3,
+                    "goals_scored": 0,
+                    "assists": 1,
+                    "clean_sheet": False,
+                    "bonus": 0,
+                    "bps": 10,
+                    "total_points": 5,
+                },
+            ]
+        }
+
+        with patch.object(client, "_request", return_value=mock_element_summary):
+            history = client.get_player_history(player_id=1)
+
+        assert len(history) == 2
+        assert all(isinstance(h, PlayerMatchHistory) for h in history)
+
+        # First entry
+        assert history[0].player_id == 1
+        assert history[0].fixture_id == 1
+        assert history[0].gameweek == 1
+        assert history[0].minutes == 90
+        assert history[0].tackles == 3
+        assert history[0].clearances_blocks_interceptions == 2
+        assert history[0].recoveries == 5
+        assert history[0].clean_sheet is True
+        assert history[0].bonus == 1
+        assert history[0].bps == 25
+        assert history[0].total_points == 9
+
+        # Second entry
+        assert history[1].gameweek == 2
+        assert history[1].minutes == 60
+
+    def test_get_player_history_empty(
+        self, client: FPLClient
+    ) -> None:
+        """Test empty history returns empty list."""
+        with patch.object(client, "_request", return_value={"history": []}):
+            history = client.get_player_history(player_id=1)
+        assert history == []
+
+    def test_get_player_gameweek_stats(
+        self, client: FPLClient
+    ) -> None:
+        """Test get_player_gameweek_stats returns typed instance."""
+        mock_element_summary = {
+            "history": [
+                {
+                    "fixture": 1,
+                    "round": 1,
+                    "minutes": 90,
+                    "tackles": 5,
+                    "clearances_blocks_interceptions": 4,
+                    "recoveries": 3,
+                    "goals_scored": 1,
+                    "assists": 0,
+                    "clean_sheet": True,
+                    "bonus": 1,
+                    "bps": 25,
+                    "total_points": 10,
+                },
+                {
+                    "fixture": 2,
+                    "round": 2,
+                    "minutes": 90,
+                    "tackles": 2,
+                    "clearances_blocks_interceptions": 1,
+                    "recoveries": 4,
+                    "goals_scored": 0,
+                    "assists": 1,
+                    "clean_sheet": False,
+                    "bonus": 0,
+                    "bps": 15,
+                    "total_points": 6,
+                },
+            ]
+        }
+
+        with patch.object(client, "_request", return_value=mock_element_summary):
+            stats = client.get_player_gameweek_stats(player_id=1, gameweek=1)
+
+        assert stats is not None
+        assert isinstance(stats, PlayerMatchHistory)
+        assert stats.gameweek == 1
+        assert stats.tackles == 5
+        assert stats.clearances_blocks_interceptions == 4
+        assert stats.recoveries == 3
+
+        # Non-existent gameweek returns None
+        missing = client.get_player_gameweek_stats(player_id=1, gameweek=99)
+        assert missing is None
+
+
+class TestNormalizeMatchHistory:
+    """Tests for the normalize_match_history function."""
+
+    def test_normalize_basic(self) -> None:
+        """Test basic conversion of raw API dict to PlayerMatchHistory."""
+        raw = {
+            "fixture": 42,
+            "round": 5,
+            "minutes": 90,
+            "goals_conceded": 1,
+            "clean_sheet": False,
+            "saves": 3,
+            "goals_scored": 2,
+            "assists": 1,
+            "tackles": 4,
+            "clearances_blocks_interceptions": 6,
+            "recoveries": 8,
+            "yellow_cards": 1,
+            "red_cards": 0,
+            "own_goals": 0,
+            "penalties_saved": 0,
+            "penalties_missed": 0,
+            "bonus": 3,
+            "bps": 42,
+            "total_points": 14,
+        }
+        history = normalize_match_history(player_id=1, raw=raw)
+
+        assert history.player_id == 1
+        assert history.fixture_id == 42
+        assert history.gameweek == 5
+        assert history.minutes == 90
+        assert history.goals_conceded == 1
+        assert history.clean_sheet is False
+        assert history.saves == 3
+        assert history.goals_scored == 2
+        assert history.assists == 1
+        assert history.tackles == 4
+        assert history.clearances_blocks_interceptions == 6
+        assert history.recoveries == 8
+        assert history.yellow_cards == 1
+        assert history.red_cards == 0
+        assert history.bonus == 3
+        assert history.bps == 42
+        assert history.total_points == 14
+
+    def test_normalize_missing_fields_use_defaults(self) -> None:
+        """Test that missing fields fall back to model defaults."""
+        raw = {"fixture": 1, "round": 1}
+        history = normalize_match_history(player_id=1, raw=raw)
+
+        assert history.fixture_id == 1
+        assert history.gameweek == 1
+        assert history.minutes == 0
+        assert history.tackles == 0
+        assert history.clearances_blocks_interceptions == 0
+        assert history.recoveries == 0
+        assert history.clean_sheet is False
+        assert history.bonus == 0
+        assert history.total_points == 0
+
+    def test_normalize_invalid_gameweek_raises(self) -> None:
+        """Test that invalid gameweek in raw data raises ValidationError."""
+        raw = {"fixture": 1, "round": 0}
+        with pytest.raises(ValueError):
+            normalize_match_history(player_id=1, raw=raw)

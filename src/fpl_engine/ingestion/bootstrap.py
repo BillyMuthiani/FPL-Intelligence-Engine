@@ -357,9 +357,16 @@ def _build_player(
         bonus=elem.get("bonus", 0),
         bps=elem.get("bps", 0),
         tackles=elem.get("tackles", 0),
-        interceptions=elem.get("interceptions", 0),
-        clearances=elem.get("clearances", 0),
-        blocks=elem.get("blocks", 0),
+        clearances_blocks_interceptions=elem.get(
+            "clearances_blocks_interceptions", 0
+        ),
+        recoveries=elem.get("recoveries", 0),
+        defensive_contribution=elem.get(
+            "defensive_contribution", 0
+        ),
+        defensive_contribution_per_90=_to_float(
+            elem.get("defensive_contribution_per_90")
+        ),
         influence=_to_float(elem.get("influence")),
         creativity=_to_float(elem.get("creativity")),
         threat=_to_float(elem.get("threat")),

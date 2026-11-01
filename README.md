@@ -1,3 +1,12 @@
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?logo=python)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-1051%20passed-brightgreen)](tests/)
+[![Ruff](https://img.shields.io/badge/lint-ruff-ff6f00?logo=ruff)](https://docs.astral.sh/ruff/)
+[![Mypy strict](https://img.shields.io/badge/type-mypy%20strict-blue)](https://mypy.readthedocs.io/)
+[![GitHub stars](https://img.shields.io/github/stars/BillyMuthiani/fpl-intelligence-engine?style=social)](https://github.com/BillyMuthiani/fpl-intelligence-engine/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/BillyMuthiani/fpl-intelligence-engine?style=social)](https://github.com/BillyMuthiani/fpl-intelligence-engine/network/members)
+
+
 # FPL Intelligence Engine
 
 A production-quality Fantasy Premier League (FPL) analytics and decision-support platform.
@@ -207,7 +216,7 @@ FPLClient (implements CompositeDataProvider)
     │
     ├─► get_bootstrap_data() → Player, Team, Gameweek, ElementType
     ├─► get_fixtures() → Fixture
-    ├─► get_player_history() → Gameweek stats
+    ├─► get_player_history() → PlayerMatchHistory
     └─► get_gameweeks() → Gameweek
     │
     ▼

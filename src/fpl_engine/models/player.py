@@ -114,10 +114,28 @@ class Player(BaseModel):
     bps: int = Field(default=0, description="Bonus points system score")
 
     # Advanced defensive
+    # NOTE: The FPL API provides tackles separately, but clearances,
+    # blocks, and interceptions are combined into a single
+    # ``clearances_blocks_interceptions`` field.  Separate per-90
+    # breakdowns are not available from the bootstrap-static or
+    # element-summary endpoints.  See scoring.py MatchStats for the
+    # FPL rule's component breakdown (tackles + interceptions +
+    # clearances + blocks = CBIT), which cannot be reconstructed
+    # from API data alone.
     tackles: int = Field(default=0, description="Tackles")
-    interceptions: int = Field(default=0, description="Interceptions")
-    clearances: int = Field(default=0, description="Clearances")
-    blocks: int = Field(default=0, description="Blocks")
+    clearances_blocks_interceptions: int = Field(
+        default=0,
+        description="Combined clearances + blocks + interceptions (FPL API field)",
+    )
+    recoveries: int = Field(default=0, description="Ball recoveries")
+    defensive_contribution: int = Field(
+        default=0,
+        description="Number of matches where DC threshold was met (FPL season aggregate)",
+    )
+    defensive_contribution_per_90: float | None = Field(
+        default=None,
+        description="Defensive contribution rate per 90 minutes",
+    )
 
     # Influence metrics
     influence: float | None = Field(default=None, description="Influence score")

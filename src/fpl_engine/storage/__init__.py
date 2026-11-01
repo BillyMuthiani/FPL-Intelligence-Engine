@@ -8,10 +8,18 @@ supports TTL-based freshness checks with stale-fallback retrieval.
 
 from .cache import SnapshotCache
 from .exceptions import CacheError
+from .historical import (
+    HistoricalSnapshot,
+    HistoricalSnapshotMetadata,
+    HistoricalSnapshotStore,
+)
 from .models import Snapshot, SnapshotMetadata
 
 __all__ = [
     "CacheError",
+    "HistoricalSnapshot",
+    "HistoricalSnapshotMetadata",
+    "HistoricalSnapshotStore",
     "Snapshot",
     "SnapshotCache",
     "SnapshotMetadata",

@@ -2,7 +2,7 @@
 
 from typing import Any, Protocol, runtime_checkable
 
-from ..models import Fixture, Gameweek, Player, Team
+from ..models import Fixture, Gameweek, Player, PlayerMatchHistory, Team
 
 
 @runtime_checkable
@@ -17,11 +17,11 @@ class PlayerDataProvider(Protocol):
         """Get a single player by ID."""
         ...
 
-    def get_player_history(self, player_id: int) -> list[dict[str, Any]]:
+    def get_player_history(self, player_id: int) -> list[PlayerMatchHistory]:
         """Get player's gameweek history."""
         ...
 
-    def get_player_gameweek_stats(self, player_id: int, gameweek: int) -> dict[str, Any] | None:
+    def get_player_gameweek_stats(self, player_id: int, gameweek: int) -> PlayerMatchHistory | None:
         """Get player stats for a specific gameweek."""
         ...
 
