@@ -7,7 +7,16 @@ import httpx
 
 from ..config import Settings, get_settings
 from ..logging import get_logger
-from ..models import Fixture, Gameweek, Player, PlayerPosition, PlayerStatus, Team
+from ..models import (
+    Fixture,
+    Gameweek,
+    Player,
+    PlayerMatchHistory,
+    PlayerPosition,
+    PlayerStatus,
+    Team,
+    normalize_match_history,
+)
 from .protocols import (
     BootstrapDataProvider,
     FixtureDataProvider,
@@ -169,9 +178,16 @@ class FPLClient(
                 bonus=elem.get("bonus", 0),
                 bps=elem.get("bps", 0),
                 tackles=elem.get("tackles", 0),
-                interceptions=elem.get("interceptions", 0),
-                clearances=elem.get("clearances", 0),
-                blocks=elem.get("blocks", 0),
+                clearances_blocks_interceptions=elem.get(
+                    "clearances_blocks_interceptions", 0
+                ),
+                recoveries=elem.get("recoveries", 0),
+                defensive_contribution=elem.get(
+                    "defensive_contribution", 0
+                ),
+                defensive_contribution_per_90=self._safe_float(
+                    elem.get("defensive_contribution_per_90")
+                ),
                 influence=self._safe_float(elem.get("influence")),
                 creativity=self._safe_float(elem.get("creativity")),
                 threat=self._safe_float(elem.get("threat")),
@@ -199,16 +215,27 @@ class FPLClient(
                 return player
         return None
 
-    def get_player_history(self, player_id: int) -> list[dict[str, Any]]:
-        """Get player's gameweek history."""
-        data = self._request(f"/element-summary/{player_id}/")
-        return data.get("history", [])  # type: ignore[no-any-return]
+    def get_player_history(self, player_id: int) -> list[PlayerMatchHistory]:
+        """Get player's gameweek history.
 
-    def get_player_gameweek_stats(self, player_id: int, gameweek: int) -> dict[str, Any] | None:
+        Returns typed ``PlayerMatchHistory`` instances by converting raw
+        element-summary history entries.
+        """
+        data = self._request(f"/element-summary/{player_id}/")
+        raw_history = data.get("history", [])
+        return [
+            normalize_match_history(player_id, entry)
+            for entry in raw_history
+            if isinstance(entry, dict)
+        ]
+
+    def get_player_gameweek_stats(
+        self, player_id: int, gameweek: int
+    ) -> PlayerMatchHistory | None:
         """Get player stats for a specific gameweek."""
         history = self.get_player_history(player_id)
         for entry in history:
-            if entry.get("round") == gameweek:
+            if entry.gameweek == gameweek:
                 return entry
         return None
 
